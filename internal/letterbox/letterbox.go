@@ -26,7 +26,7 @@ const (
 
 	PUZZLE_SIZE      = 12
 	MIN_WORD_LENGTH  = 3
-	MAX_SEARCH_DEPTH = 3
+	MAX_SEARCH_DEPTH = 2
 )
 
 type EncodedLetter uint16
@@ -182,12 +182,21 @@ func (solution *Solution) Score() int {
 	return bits.OnesCount16(uint16(sum))
 }
 
+func (solution *Solution) Len() int {
+	length := 0
+	for _, word := range *solution {
+		length = length + len(word.Text)
+	}
+	return length
+}
+
 func (solution *Solution) isSolved() bool {
 	return solution.Score() == PUZZLE_SIZE
 }
 
 func (board *GameBoard) GenerateSolution() Solution {
 	solutions := make([]Solution, len(board.WordList))
+	// Convert the initial list of words into an initial list of potential solutions
 	for i, v := range board.WordList {
 		solution := Solution([]Word{v})
 		// if the solution is already found, we can stop early.
@@ -196,29 +205,50 @@ func (board *GameBoard) GenerateSolution() Solution {
 		}
 		solutions[i] = Solution([]Word{v})
 	}
+	// Create longer and longer solutions by trying to add each word in the word list to the
+	// list of potential solutions. We don't have to look too deeply because the puzzle is
+	// designed to be solved with just a few words.
 	for range MAX_SEARCH_DEPTH {
 		nextSolutions := make([]Solution, 0)
+		solved := make([]Solution, 0)
 		for _, solution := range solutions {
-			for _, v := range board.WordList {
+			for _, currentWord := range board.WordList {
 				previousWord := solution[len(solution)-1]
-				if previousWord.LastLetter != v.FirstLetter {
+				// The next word has to start with the same letter as the last word
+				// in the solution.
+				if previousWord.LastLetter != currentWord.FirstLetter {
 					continue
 				}
-				score := solution.Score()
-				newSolution := append(solution, v)
-				if newSolution.isSolved() {
-					return newSolution
-				}
-				// this takes care of duplicate words and words that embed other words.
-				if newSolution.Score() > score {
+				newSolution := append(solution, currentWord)
+				// If the new solution does not score higher than the old solution,
+				// then the new solution must have no new letters. Therefore, we can
+				// skip this word.
+				if newSolution.Score() > solution.Score() {
 					nextSolutions = append(nextSolutions, newSolution)
+				}
+				// If the potential solution is an actual solution, we cache it. We
+				// don't want to take the first solution because it might not be
+				// the shortest solution.
+				if newSolution.isSolved() {
+					solved = append(solved, newSolution)
 				}
 			}
 		}
-		sort.Slice(nextSolutions, func(i, j int) bool {
-			return nextSolutions[i].Score() > nextSolutions[j].Score()
-		})
-		solutions = nextSolutions
+		// If we have actual solutions, grab the shortest one and return it.
+		if len(solved) > 0 {
+			var shortest *Solution
+			for _, solution := range solved {
+				if shortest == nil {
+					shortest = &solution
+				}
+				if shortest.Len() > solution.Len() {
+					shortest = &solution
+				}
+			}
+			return *shortest
+		} else {
+			solutions = nextSolutions
+		}
 	}
 	log.Fatalf("Looped %d times and did not find a solution", MAX_SEARCH_DEPTH)
 	return nil

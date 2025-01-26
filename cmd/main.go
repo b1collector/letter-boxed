@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -16,5 +17,5 @@ func main() {
 	board := letterbox.NewGameBoard(letters)
 	board.LoadWordList("dictionary.txt")
 	solution := board.GenerateSolution()
-	log.Printf("Solution: %v", solution)
+	fmt.Printf("%v\n", solution)
 }
